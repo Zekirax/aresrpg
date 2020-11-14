@@ -22,7 +22,8 @@ import { register_traders, spawn_merchants } from './trade/spawn_villagers.js'
 import { open_trade, register_trades } from './trade/trade.js'
 import dialog from './mobs/dialog.js'
 import { reduce_view_distance } from './view_distance.js'
-import { floor1 } from './world.js'
+import logger from './logger.js'
+import { reduce_inventory } from './inventory.js'
 
 const log = logger(import.meta)
 
@@ -53,6 +54,7 @@ const initial_state = ({ entity_id, world }) => ({
   }),
   game_mode: 2,
   experience: 0,
+  cursor_item_selected: undefined,
 })
 
 function reduce_state(state, action) {
@@ -62,6 +64,7 @@ function reduce_state(state, action) {
     reduce_position,
     reduce_view_distance,
     reduce_plugin_channels,
+    reduce_inventory,
   ].reduce((intermediate, fn) => fn(intermediate, action), state)
 }
 
