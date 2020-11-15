@@ -23,7 +23,7 @@ import { open_trade, register_trades } from './trade/trade.js'
 import dialog from './mobs/dialog.js'
 import { reduce_view_distance } from './view_distance.js'
 import logger from './logger.js'
-import { reduce_inventory } from './inventory.js'
+import { reduce_inventory, listen_inventory } from './inventory.js'
 
 const log = logger(import.meta)
 
@@ -88,6 +88,7 @@ async function observe_client(context) {
   dialog(context)
   update_experience(context)
   chat({ server, ...context }) // TODO: remove server
+  listen_inventory(context)
 }
 
 /* The following code handle the pipeline, it works as following
