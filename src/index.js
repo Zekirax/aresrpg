@@ -18,6 +18,7 @@ import {
   reduce_plugin_channels,
   transform_plugin_channels,
 } from './plugin_channels.js'
+import { init_scoreboard } from './scoreboard/init_scoreboard.js'
 import chat from './chat.js'
 import { reduce_view_distance } from './view_distance.js'
 import logger from './logger.js'
@@ -79,6 +80,7 @@ function observe_client(context) {
   spawn_merchants(context)
   open_trade(context)
   update_experience(context)
+  init_scoreboard(context)
   chat({ server, ...context }) // TODO: remove server
 }
 
