@@ -1,172 +1,114 @@
 import {
   Positions,
-  ObjectiveActions,
   Types,
   ScoreActions,
-  scoreboard_objective,
-  scoreboard_score,
-  scoreboard_display_objective,
-} from './scoreboard.js'
+  ChatColor,
+  ObjectiveActions,
+} from './enums.js'
+import { chat_to_text } from './util.js'
 
-import { update_basetext_animation } from './animations.js'
+function make_unique(currentLines) {
+  const lines = []
 
-//TODO: should be moved to redis. not stateless if we clusterize the server.
-const clientLinesMap = new Map()
-const clientTitleMap = new Map()
+  while (currentLines.length > 0) {
+    const line = currentLines.pop()
 
-/**
- * Init sidebar of a client
- * @param {{client: any}} State
- */
-export function init_sidebar({ client }) {
-  if (clientLinesMap.has(client.username)) {
-    return
+    while (lines.find((item) => item.text === line.text)) {
+      line.text = line.text + ChatColor.RESET
+    }
+
+    lines.push(line)
   }
 
-  scoreboard_objective(
-    { client },
-    {
-      name: client.username,
-      action: ObjectiveActions.CREATE,
-      displayText: '',
-      type: Types.INTEGER,
-    }
-  )
-
-  clientLinesMap.set(client.username, new Map())
+  return lines
 }
 
 /**
- * Send sidebar to client
- * @param {{client: any}} State
+ * Update sidebar of a client
+ * @param {{client: any}} Client
+ * @param {{last: {title: Chat, lines: Chat[]}, next: {title: Chat, lines: Chat[]}, animated: boolean}} Options
  */
-export function send_sidebar({ client }) {
-  scoreboard_display_objective(
-    { client },
-    {
+export function update_sidebar({ client }, { last, next, animated = false }) {
+  const lastLines = last.lines
+    ? make_unique(
+        last.lines.map((item, index) => ({
+          text: chat_to_text(item).substring(0, 40),
+          line: last.lines.length - index,
+        }))
+      )
+    : []
+  const nextLines = next.lines
+    ? make_unique(
+        next.lines.map((item, index) => ({
+          text: chat_to_text(item).substring(0, 40),
+          line: next.lines.length - index,
+        }))
+      )
+    : []
+
+  const action =
+    !last.title && next.title
+      ? ObjectiveActions.CREATE
+      : last.title && next.title && last.title !== next.title
+      ? ObjectiveActions.UPDATE
+      : last.title && !next.title
+      ? ObjectiveActions.REMOVE
+      : -1
+
+  if (action != -1) {
+    const objective = {
+      name: client.username,
+      action,
+    }
+
+    if (action != ObjectiveActions.REMOVE) {
+      objective.displayText = JSON.stringify(next.title)
+      objective.type = Types.INTEGER
+    }
+
+    const displayObjective = {
       position: Positions.SIDEBAR,
       name: client.username,
     }
-  )
-}
 
-/**
- * Remove sidebar of a client
- * @param {{client: any}} State
- */
-export function remove_sidebar({ client }) {
-  scoreboard_objective(
-    { client },
-    {
-      name: client.username,
-      action: ObjectiveActions.REMOVE,
-    }
-  )
-
-  clientLinesMap.delete(client.username)
-}
-
-/**
- * Clear sidebar of a client
- * @param {{client: any}} State
- */
-export function clear_sidebar({ client }) {
-  clientLinesMap
-    .get(client.username)
-    .forEach((line, text) => removeline_sidebar({ client }, { text }))
-}
-
-/**
- * Assign text to line in the sidebar
- * @param {{client: any}} State
- * @param {{text: string, line: number, animated: boolean}} Options
- */
-export function setline_sidebar({ client }, { text, line, animated }) {
-  if (text.length > 40) {
-    text = text.substring(0, 40)
+    client.write('scoreboard_objective', objective)
+    client.write('scoreboard_display_objective', displayObjective)
   }
 
-  const lines = clientLinesMap.get(client.username)
-
-  if (lines.has(text)) {
-    removeline_sidebar({ client }, { text })
-  }
-
-  scoreboard_score(
-    { client },
-    {
-      scoreName: client.username,
-      action: ScoreActions.UPDATE,
-      itemName: text,
-      value: line,
-    }
+  const itemsToDelete = lastLines.filter((item) => {
+    const sameLine = nextLines.find((item2) => item.line == item2.line)
+    return !sameLine || sameLine.text != item.text
+  })
+  const itemsToUpdate = nextLines.filter(
+    (item) =>
+      !lastLines.find(
+        (item2) => item.text == item2.text && item.line == item2.line
+      )
   )
 
-  if (!animated) {
-    update_basetext_animation({ client }, { line, text })
-  }
-
-  clientLinesMap.get(client.username).set(text, line)
-}
-
-/**
- * Remove text of the sidebar
- * @param {{client: any}} State
- * @param {{text: string}} Options
- */
-export function removeline_sidebar({ client }, { text }) {
-  if (text.length > 40) {
-    text = text.substring(0, 40)
-  }
-
-  const lines = clientLinesMap.get(client.username)
-
-  if (!lines.has(text)) {
-    return
-  }
-
-  const line = lines.get(text)
-
-  scoreboard_score(
-    { client },
-    {
+  for (const item of itemsToDelete) {
+    const obj = {
       scoreName: client.username,
       action: ScoreActions.REMOVE,
-      itemName: text,
-      value: line,
+      itemName: item.text,
+      value: item.line,
     }
-  )
 
-  lines.delete(text)
-}
+    console.log(`delete ${item.text} at ${item.line}`)
 
-/**
- * Set name of the sidebar
- * @param {{client: any}} State
- * @param {{name: string, animated: boolean}} Options
- */
-export function setname_sidebar({ client }, { name, animated }) {
-  scoreboard_objective(
-    { client },
-    {
-      name: client.username,
-      action: ObjectiveActions.UPDATE,
-      displayText: name,
-      type: Types.INTEGER,
-    }
-  )
-
-  if (!animated) {
-    update_basetext_animation({ client }, { line: 'title', text: name })
+    client.write('scoreboard_score', obj)
   }
 
-  clientTitleMap.set(client.username, name)
-}
+  for (const item of itemsToUpdate) {
+    const obj = {
+      scoreName: client.username,
+      action: ScoreActions.UPDATE,
+      itemName: item.text,
+      value: item.line,
+    }
 
-/**
- * Get name of the sidebar
- * @param {{client: any}} State
- */
-export function getname_sidebar({ client }) {
-  return clientTitleMap.get(client.username)
+    console.log(`update ${item.text} at ${item.line}`)
+
+    client.write('scoreboard_score', obj)
+  }
 }

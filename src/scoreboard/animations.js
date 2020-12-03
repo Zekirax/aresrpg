@@ -1,8 +1,6 @@
-import { set_sideline, get_sideline } from './sideline.js'
-import { setname_sidebar, getname_sidebar } from './sidebar.js'
-
-//TODO: should be moved to redis. not stateless if we clusterize the server.
-const clientAnimationMap = new Map()
+import { update_sidebar } from './sidebar.js'
+import { ChatColor } from './enums.js'
+import { chat_to_text } from './util.js'
 
 export const AnimationDirection = {
   LEFT: 0,
@@ -10,337 +8,169 @@ export const AnimationDirection = {
   BLINK: 2,
 }
 
-function isFormatCode(color) {
-  return (
-    color === '§k' ||
-    color === '§l' ||
-    color === '§m' ||
-    color === '§n' ||
-    color === '§o'
-  )
-}
-
-function updatetext_animation({ client }, { animation, text }) {
-  if (animation.line === 'title') {
-    setname_sidebar({ client }, { name: text, animated: true })
-  } else {
-    set_sideline({ client }, { line: animation.line, text, animated: true })
-  }
-}
-
 function process_animation({ client }, { animation }) {
-  const effect = Array.isArray(animation.effect)
-    ? animation.effect
-    : [animation.effect]
-  let animatedStr = ''
-
-  const numberColor = (animation.baseText.match(/§/g) || []).length
-  const baseTextLength = animation.baseText.length - numberColor * 2
-
-  const effectToApply = {}
-  for (let i = 0; i < effect.length; i++) {
-    let indexEffect = -1
-
-    if (animation.direction === AnimationDirection.RIGHT) {
-      indexEffect = i - effect.length + 1 + animation.increment
-    } else if (animation.direction === AnimationDirection.LEFT) {
-      indexEffect = i + baseTextLength - 1 - animation.increment
-    } else if (animation.direction === AnimationDirection.BLINK) {
-      indexEffect = animation.increment % 2 == 0 ? i : -1
-    }
-
-    if (indexEffect >= 0 && indexEffect < baseTextLength) {
-      effectToApply[indexEffect] = effect[i]
-    }
-  }
-
-  const effectToApplyKeys = Object.keys(effectToApply)
-  const lastEffectIndex =
-    effectToApplyKeys[
-      animation.direction === AnimationDirection.RIGHT
-        ? effectToApplyKeys.length - 1
-        : animation.direction === AnimationDirection.LEFT
-        ? 0
-        : undefined
-    ]
+  const animationInfo = animation.getCurrentAnimationInfo()
+  const baseTextNoColor = animation.baseText.replace(/§[0-9a-f]/g, '')
+  const isBlink = animationInfo.direction === AnimationDirection.BLINK
+  const isLeft = animationInfo.direction === AnimationDirection.LEFT
+  const effects = isLeft
+    ? animationInfo.effects.reverse()
+    : animationInfo.effects
+  const increment = Math.floor(
+    (new Date().getTime() - animation.startTime) / animationInfo.delay
+  )
+  const endIndex = increment % (baseTextNoColor.length + effects.length)
+  let animatedText = ''
   let previousColors = ''
   let offset = 0
+  let updated = false
 
-  for (let i = 0; i < animation.baseText.length; i++) {
-    const char = animation.baseText[i]
-    const index = i - offset
-    const effect = effectToApply[index]
-    const shouldCut =
-      animation.removeTextAfter &&
-      ((typeof lastEffectIndex !== 'undefined' && index > lastEffectIndex) ||
-        (effectToApplyKeys.length == 0 &&
-          animation.direction === AnimationDirection.LEFT))
+  if (isBlink) {
+    animatedText = animation.baseText
+    if (increment % 2 == 0) {
+      animatedText = animationInfo.effets.join('') + animatedText
+      updated = true
+    }
+  } else {
+    const baseText = isLeft
+      ? animation.baseText.split('').reverse().join('')
+      : animation.baseText
 
-    if (char === '§') {
-      const color = char + animation.baseText[i + 1]
+    for (let i = 0; i < baseText.length; i++) {
+      const cur = baseText[i]
+      const indexEffect = endIndex - i - offset
+      const shouldCut = indexEffect < 0 && animationInfo.removeTextAfter
 
-      if (!isFormatCode(color)) {
-        previousColors = ''
+      if (shouldCut) {
+        break
       }
 
-      previousColors += color
-      if (!shouldCut) {
-        animatedStr += color
+      if (cur === '§') {
+        const color = cur + baseText[i + 1]
+
+        if (!ChatColor.isFormatCode(color)) {
+          previousColors = ''
+        }
+
+        previousColors += color
+        i++
+        offset += 2
+        continue
       }
-      i++
-      offset += 2
-      continue
+
+      if (indexEffect >= effects.length) {
+        animatedText += cur
+        continue
+      }
+
+      if (indexEffect < 0) {
+        animatedText += cur
+        continue
+      }
+
+      animatedText +=
+        effects[indexEffect] + cur + ChatColor.RESET + previousColors
+      updated = true
     }
 
-    if (shouldCut) {
-      continue
-    }
-
-    if (effect) {
-      animatedStr += effect + char + '§r' + previousColors
-    } else {
-      animatedStr += char
+    if (isLeft) {
+      animatedText = animatedText.split('').reverse().join('')
     }
   }
 
-  updatetext_animation({ client }, { animation, text: animatedStr })
+  // Apply changes
+  const nextState = {
+    title: animation.boardState.title,
+    lines: [...animation.boardState.lines],
+  }
+  const stateIndex = nextState.lines.length - animation.line
+  if (animation.line === 'title') {
+    nextState.title = animatedText
+  } else {
+    nextState.lines = nextState.lines.map((item, index) => {
+      if (stateIndex !== index) {
+        return item
+      }
 
-  animation.increment++
+      return animatedText
+    })
+  }
 
-  const indexEffects = Object.keys(effectToApply)
-  const endLoop =
-    (animation.direction === AnimationDirection.BLINK &&
-      animation.increment > 0 &&
-      animation.increment % 2 == 0) ||
-    (animation.direction === AnimationDirection.RIGHT &&
-      indexEffects.length <= 0) ||
-    (animation.direction === AnimationDirection.LEFT &&
-      indexEffects.length <= 0)
+  console.log('---------')
+  console.log(animation.boardState.lines[stateIndex])
+  console.log(nextState.lines[stateIndex])
 
-  if (endLoop) {
+  update_sidebar(
+    { client },
+    { last: animation.boardState, next: nextState, animated: true }
+  )
+
+  animation.boardState.lines[stateIndex] = animatedText
+
+  if (!updated) {
     animation.loop++
   }
 
-  if (animation.maxLoop != -1 && animation.loop >= animation.maxLoop) {
+  if (animationInfo.maxLoop != -1 && animation.loop >= animationInfo.maxLoop) {
     clearInterval(animation.interval)
     setTimeout(() => {
-      next_animation({ client }, { line: animation.line })
-    }, animation.transitionDelay)
-  } else if (endLoop) {
-    animation.increment = 0
+      animation.next()
+    }, animationInfo.transitionDelay)
   }
 }
 
 /**
- * Set the animations for a scoreboard line of that client.
- * You need to start the animation after that.
+ * Create the animations for a scoreboard line of that client.
  * @param {{client: any}} State
- * @param {{line: number | 'title', animation: {effect, delay, transitionDelay, direction, removeTextAfter, maxLoop}}} Options
+ * @param {{boardState: {title: Chat, lines: Chat[]}, line: number | 'title', animations: {effects, delay, transitionDelay, direction, removeTextAfter, maxLoop}[] }} Options
+ * @returns {{start(), stop(), reset(), next(), updateBoardState(boardState: {title: CHat, lines: Chat[]})}} Animation State
  */
-export function set_animation({ client }, { line, animations }) {
-  reset_animation({ client }, { line })
-
-  if (!clientAnimationMap.has(client.username)) {
-    clientAnimationMap.set(client.username, new Map())
-  }
-
-  const animationsMap = clientAnimationMap.get(client.username)
-
-  if (!animationsMap.has(line)) {
-    animationsMap.set(line, [])
-  }
-
-  const list = animationsMap.get(line)
-
-  list.push(
-    ...animations.map((animation) => {
-      const baseText =
-        line === 'title'
-          ? getname_sidebar({ client })
-          : get_sideline({ client }, { line: line })
-
-      return {
-        ...animation,
-        line,
-        loop: 0,
-        increment: 0,
-        interval: null,
-        baseText,
-      }
-    })
-  )
-}
-
-/**
- * Start animation of that line
- * @param {{client: any}} State
- * @param {{line: number}} Options
- */
-export function start_animation({ client }, { line }) {
-  const list = clientAnimationMap.get(client.username).get(line)
-
-  // Find current
-  let animation = list.find((animation) => animation.interval != null)
-
-  if (!animation) {
-    animation = list[0]
-  }
-
-  animation.interval = setInterval(
-    () => process_animation({ client }, { animation }),
-    animation.delay
-  )
-}
-
-/**
- * Stop animation of that line
- * @param {{client: any}} State
- * @param {{line: number}} Options
- */
-export function stop_animation({ client }, { line }) {
-  const list = clientAnimationMap.get(client.username).get(line)
-
-  // Find current
-  const animation = list.find((animation) => animation.interval != null)
-
-  if (!animation) {
-    return
-  }
-
-  clearInterval(animation.interval)
-}
-
-/**
- * Reset animation of that line
- * @param {{client: any}} State
- * @param {{line: number, baseTextReset: boolean}} Options
- */
-export function reset_animation({ client }, { line, baseTextReset = true }) {
-  const animationsMap = clientAnimationMap.get(client.username)
-
-  if (!animationsMap) {
-    return
-  }
-
-  const list = animationsMap.get(line)
-
-  if (!list) {
-    return
-  }
-
-  // Find current
-  const animation = list.find((animation) => animation.interval != null)
-
-  if (!animation) {
-    return null
-  }
-
-  clearInterval(animation.interval)
-  animation.increment = 0
-  animation.loop = 0
-  animation.interval = null
-  animation.colorToRestore = []
-
-  if (baseTextReset) {
-    updatetext_animation({ client }, { animation, text: animation.baseText })
+export function create_animation({ client }, { boardState, line, animations }) {
+  const animation = {
+    boardState,
+    baseText: chat_to_text(boardState.lines[boardState.lines.length - line]),
+    line,
+    current: 0,
+    loop: 0,
+    interval: null,
+    startTime: null,
+    animationsInfo: animations,
+    getCurrentAnimationInfo() {
+      return this.animationsInfo[this.current]
+    },
+    start() {
+      this.startTime = new Date().getTime()
+      this.interval = setInterval(
+        () => process_animation({ client }, { animation: this }),
+        this.getCurrentAnimationInfo().delay
+      )
+      process_animation({ client }, { animation: this })
+    },
+    stop() {
+      clearInterval(this.interval)
+    },
+    reset() {
+      clearInterval(this.interval)
+      this.interval = null
+      this.startTime = null
+      this.loop = 0
+      this.current = 0
+    },
+    next() {
+      clearInterval(this.interval)
+      this.interval = null
+      this.startTime = null
+      this.loop = 0
+      this.current = (this.current + 1) % this.animationsInfo.length
+      this.start()
+    },
+    updateBoardState(boardState) {
+      this.boardState = boardState
+      this.baseText = chat_to_text(
+        this.boardState.lines[this.boardState.lines.length - this.line]
+      )
+    },
   }
 
   return animation
-}
-
-/**
- * Go to the next animation of that line
- * @param {{client: any}} State
- * @param {{line: number}} Options
- */
-export function next_animation({ client }, { line }) {
-  const list = clientAnimationMap.get(client.username).get(line)
-  const animation = reset_animation({ client }, { line, baseTextReset: false })
-
-  if (!animation) {
-    return
-  }
-
-  // Go to the next animation for that line
-  let index = list.indexOf(animation)
-  index = (index + 1) % list.length
-
-  const nextAnim = list[index]
-  nextAnim.interval = setInterval(
-    () => process_animation({ client }, { animation: nextAnim }),
-    animation.delay
-  )
-}
-
-/**
- * Update the base text of the animations of that line
- * @param {{client: any}} State
- * @param {{line: number, text: string}} Options
- */
-export function update_basetext_animation({ client }, { line, text }) {
-  const animationMap = clientAnimationMap.get(client.username)
-
-  if (!animationMap) {
-    return
-  }
-
-  const list = animationMap.get(line)
-
-  if (!list) {
-    return
-  }
-
-  for (const animation of list) {
-    animation.baseText = text
-  }
-
-  reset_animation({ client }, { line })
-  start_animation({ client }, { line })
-}
-
-/**
- * Remove the animation at the index of that line
- * You need to start again if that animation was playing
- * @param {{client: client}} State
- * @param {{line: number, index: number}} Options
- */
-export function remove_animation({ client }, { line, index }) {
-  const list = clientAnimationMap.get(client.username).get(line)
-  const animation = list[index]
-
-  list.slice(index, 1)
-
-  if (animation.interval) {
-    clearInterval(animation.interval)
-    updatetext_animation({ client }, { animation, text: animation.baseText })
-  }
-}
-
-/**
- * Remove all the animation of that line
- * @param {{client: client}} State
- * @param {{line: number}} Options
- */
-export function removeall_animation({ client }, { line }) {
-  const list = clientAnimationMap.get(client.username).get(line)
-
-  for (let i = 0; i < list.length; i++) {
-    remove_animation({ client }, { line, index: 0 })
-  }
-}
-
-/**
- * Remove all the animation of all the lines
- * @param {{client: client}} State
- */
-export function clear_animation({ client }) {
-  const animationsMap = clientAnimationMap.get(client.username)
-
-  for (let [k, v] of animationsMap) {
-    for (let i = 0; i < v.length; i++) {
-      remove_animation({ client }, { line: k, index: 0 })
-    }
-  }
-
-  animationsMap.clear()
 }

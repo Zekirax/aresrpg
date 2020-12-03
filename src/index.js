@@ -18,7 +18,7 @@ import {
   reduce_plugin_channels,
   transform_plugin_channels,
 } from './plugin_channels.js'
-import { init_scoreboard } from './scoreboard/init_scoreboard.js'
+import { scoreboard } from './scoreboard/scoreboard.js'
 import chat from './chat.js'
 import { reduce_view_distance } from './view_distance.js'
 import logger from './logger.js'
@@ -75,12 +75,12 @@ function observe_client(context) {
    * They get the client and should map it to minecraft protocol */
   login(context)
   update_chunks(context)
-  send_resource_pack(context)
+  // send_resource_pack(context)
   spawn_mob(context)
   spawn_merchants(context)
   open_trade(context)
   update_experience(context)
-  init_scoreboard(context)
+  scoreboard(context)
   chat({ server, ...context }) // TODO: remove server
 }
 
