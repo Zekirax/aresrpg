@@ -22,8 +22,8 @@ import { register_traders, spawn_merchants } from './trade/spawn_villagers.js'
 import { open_trade, register_trades } from './trade/trade.js'
 import dialog from './mobs/dialog.js'
 import { reduce_view_distance } from './view_distance.js'
-import logger from './logger.js'
 import { reduce_inventory, listen_inventory } from './inventory.js'
+import { floor1 } from './world.js'
 
 const log = logger(import.meta)
 
