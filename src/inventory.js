@@ -2,7 +2,8 @@ import { item_to_slot, empty_slot } from './items.js'
 
 export function reduce_inventory(state, { type, payload }) {
   if (type === 'inventory/window_click') {
-    const { inv_index, item, item_save } = payload
+    const { inv_index, item, item_save, transaction } = payload
+    console.log(state.inventory, state.cursor_item_selected)
     const newState = {
       ...state,
       inventory: [
@@ -12,17 +13,17 @@ export function reduce_inventory(state, { type, payload }) {
       ],
       cursor_item_selected: item_save,
     }
-    // console.log(_state.inventory, _state.cursor_item_selected)
+    transaction(newState)
+    console.log(newState.inventory, newState.cursor_item_selected)
     return newState
   }
   return state
 }
 
 export function listen_inventory({ client, events, dispatch }) {
-  client.on('window_click', ({ windowId, slot }) => {
+  client.on('window_click', ({ windowId, slot, action, item }) => {
     events.once('state', (state) => {
       if (windowId || slot === -1) return
-      console.log(slot, state.cursor_item_selected)
       const payload = {
         inv_index: slot === -999 ? state.cursor_item_selected.prev_slot : slot,
         out_inv: slot === -999,
@@ -34,13 +35,21 @@ export function listen_inventory({ client, events, dispatch }) {
           : undefined,
       }
 
-      dispatch('inventory/window_click', { ...state, ...payload })
-
-      if (payload.out_inv) {
-        events.once('state', (state) => {
-          restore_items(client, state.world, state.inventory)
-        })
-      }
+      dispatch('inventory/window_click', {
+        ...state,
+        ...payload,
+        transaction: (updatedState) => {
+          if (slot === -999) {
+            console.log('tesst')
+            restore_items(client, updatedState.world, updatedState.inventory)
+          }
+        },
+      })
+      client.write('transaction', {
+        windowId,
+        action,
+        accepted: true,
+      })
     })
   })
 }
