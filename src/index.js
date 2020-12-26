@@ -20,6 +20,7 @@ import { reduce_position } from './position.js'
 import { online_mode, version } from './settings.js'
 import { register_traders, spawn_merchants } from './trade/spawn_villagers.js'
 import { open_trade, register_trades } from './trade/trade.js'
+import { open_bank } from './bank.js'
 import dialog from './mobs/dialog.js'
 import { reduce_view_distance } from './view_distance.js'
 import { floor1 } from './world.js'
@@ -46,7 +47,7 @@ const initial_state = ({ entity_id, world }) => ({
   position: world.spawn_position,
   view_distance: 0,
   inventory: Array.from({
-    length: 46,
+    length: 54,
     36: { type: 'spellbook', count: 1 },
     37: { type: 'bronze_coin', count: 10 },
     38: { type: 'menitrass_100', count: 1 },
@@ -82,6 +83,7 @@ async function observe_client(context) {
   spawn_mob(context)
   spawn_merchants(context)
   open_trade(context)
+  open_bank(context)
   dialog(context)
   update_experience(context)
   chat({ server, ...context }) // TODO: remove server
