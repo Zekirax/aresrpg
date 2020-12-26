@@ -8,9 +8,19 @@ export const AnimationDirection = {
   BLINK: 2,
 }
 
+const is_format_code = (color) =>
+  color === ChatColor.OBFUSCATED ||
+  color === ChatColor.BOLD ||
+  color === ChatColor.STRIKETHROUGH ||
+  color === ChatColor.UNDERLINE ||
+  color === ChatColor.ITALIC
+
 function process_animation({ client }, { animation }) {
+  console.log('-------------------')
+  console.log(animation.baseText)
   const animationInfo = animation.getCurrentAnimationInfo()
-  const baseTextNoColor = animation.baseText.replace(/§[0-9a-f]/g, '')
+  const baseTextNoColor = animation.baseText.replace(/§[0-9a-z]/g, '')
+  console.log(baseTextNoColor)
   const isBlink = animationInfo.direction === AnimationDirection.BLINK
   const isLeft = animationInfo.direction === AnimationDirection.LEFT
   const effects = isLeft
@@ -19,7 +29,7 @@ function process_animation({ client }, { animation }) {
   const increment = Math.floor(
     (new Date().getTime() - animation.startTime) / animationInfo.delay
   )
-  const endIndex = increment % (baseTextNoColor.length + effects.length)
+  const endIndex = increment % baseTextNoColor.length
   let animatedText = ''
   let previousColors = ''
   let offset = 0
@@ -48,13 +58,17 @@ function process_animation({ client }, { animation }) {
       if (cur === '§') {
         const color = cur + baseText[i + 1]
 
-        if (!ChatColor.isFormatCode(color)) {
+        if (!is_format_code(color)) {
           previousColors = ''
         }
 
         previousColors += color
         i++
         offset += 2
+
+        //TODO: we forgot that
+        animatedText += color
+
         continue
       }
 
@@ -78,42 +92,37 @@ function process_animation({ client }, { animation }) {
     }
   }
 
+  console.log(animatedText)
+
   // Apply changes
+  const curState = animation.updatedBoardState ?? animation.boardState
   const nextState = {
-    title: animation.boardState.title,
-    lines: [...animation.boardState.lines],
+    title: curState.title,
+    lines: [...curState.lines],
   }
-  const stateIndex = nextState.lines.length - animation.line
+
   if (animation.line === 'title') {
-    nextState.title = animatedText
+    nextState.title = { text: animatedText }
   } else {
-    nextState.lines = nextState.lines.map((item, index) => {
-      if (stateIndex !== index) {
-        return item
-      }
-
-      return animatedText
-    })
+    const stateIndex = nextState.lines.length - animation.line
+    nextState.lines[stateIndex] = { text: animatedText }
   }
 
-  console.log('---------')
-  console.log(animation.boardState.lines[stateIndex])
-  console.log(nextState.lines[stateIndex])
+  update_sidebar({ client }, { last: animation.boardState, next: nextState })
 
-  update_sidebar(
-    { client },
-    { last: animation.boardState, next: nextState, animated: true }
-  )
+  animation.boardState = nextState
 
-  animation.boardState.lines[stateIndex] = animatedText
+  if (animation.updatedBoardState) {
+    animation.updatedBoardState = null
+  }
 
   if (!updated) {
     animation.loop++
   }
 
   if (animationInfo.maxLoop != -1 && animation.loop >= animationInfo.maxLoop) {
-    clearInterval(animation.interval)
-    setTimeout(() => {
+    animation.stop()
+    animation.transitionTimeout = setTimeout(() => {
       animation.next()
     }, animationInfo.transitionDelay)
   }
@@ -128,11 +137,17 @@ function process_animation({ client }, { animation }) {
 export function create_animation({ client }, { boardState, line, animations }) {
   const animation = {
     boardState,
-    baseText: chat_to_text(boardState.lines[boardState.lines.length - line]),
+    updatedBoardState: null,
+    baseText: chat_to_text(
+      line === 'title'
+        ? boardState.title
+        : boardState.lines[boardState.lines.length - line]
+    ),
     line,
     current: 0,
     loop: 0,
     interval: null,
+    transitionTimeout: null,
     startTime: null,
     animationsInfo: animations,
     getCurrentAnimationInfo() {
@@ -148,16 +163,17 @@ export function create_animation({ client }, { boardState, line, animations }) {
     },
     stop() {
       clearInterval(this.interval)
+      clearInterval(this.transitionTimeout)
     },
     reset() {
-      clearInterval(this.interval)
+      this.stop()
       this.interval = null
       this.startTime = null
       this.loop = 0
       this.current = 0
     },
     next() {
-      clearInterval(this.interval)
+      this.stop()
       this.interval = null
       this.startTime = null
       this.loop = 0
@@ -165,9 +181,13 @@ export function create_animation({ client }, { boardState, line, animations }) {
       this.start()
     },
     updateBoardState(boardState) {
-      this.boardState = boardState
+      this.updatedBoardState = boardState
       this.baseText = chat_to_text(
-        this.boardState.lines[this.boardState.lines.length - this.line]
+        this.line === 'title'
+          ? this.updatedBoardState.title
+          : this.updatedBoardState.lines[
+              this.updatedBoardState.lines.length - this.line
+            ]
       )
     },
   }

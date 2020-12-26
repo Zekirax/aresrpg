@@ -44,10 +44,4 @@ export const ChatColor = {
   UNDERLINE: '§n',
   ITALIC: '§o',
   RESET: '§r',
-  isFormatCode: (color) =>
-    color === '§k' ||
-    color === '§l' ||
-    color === '§m' ||
-    color === '§n' ||
-    color === '§o',
 }
