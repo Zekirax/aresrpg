@@ -176,13 +176,10 @@ function calculate_animation_frames(text, animation) {
 
           const effect =
             animation.effects[j - i - offset + animation.effects.length]
-          let arr = [].concat(effect || []).concat(e)
-
-          if (effect) {
-            arr = arr.concat(ChatColor.RESET).concat(colors)
-          }
-
-          return arr
+          return []
+            .concat(effect || [])
+            .concat(e)
+            .concat(effect ? [ChatColor.RESET].concat(colors) : [])
         })
         .join('')
     })
