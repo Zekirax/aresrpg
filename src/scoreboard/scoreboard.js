@@ -64,8 +64,6 @@ export function scoreboard({ client, events }) {
 
     update_sidebar({ client }, { last: {}, next: scoreboard })
 
-    //TODO: BLINk AND LEFT not working. Text with base color doesn't work. Retest text without base color after that
-
     const animation = create_animation(
       { client },
       {
@@ -73,12 +71,35 @@ export function scoreboard({ client, events }) {
         line: 'title',
         animations: [
           {
-            effects: [ChatColor.DARK_RED],
-            delay: 1000,
-            transitionDelay: 3000,
+            effects: [ChatColor.DARK_RED, ChatColor.DARK_RED],
+            delay: 75,
+            transitionDelay: 0,
             direction: AnimationDirection.RIGHT,
-            removeTextAfter: false,
-            maxLoop: 3,
+            maxLoop: 2,
+          },
+          {
+            effects: [ChatColor.DARK_RED],
+            delay: 75,
+            transitionDelay: 15000,
+            direction: AnimationDirection.BLINK,
+            maxLoop: 6,
+          },
+        ],
+      }
+    )
+
+    const animation2 = create_animation(
+      { client },
+      {
+        boardState: scoreboard,
+        line: 1,
+        animations: [
+          {
+            effect: [],
+            delay: 150,
+            transitionDelay: 10000,
+            direction: AnimationDirection.WRITE,
+            maxLoop: 1,
           },
         ],
       }
@@ -86,11 +107,12 @@ export function scoreboard({ client, events }) {
 
     setTimeout(() => {
       animation.start()
+      animation2.start()
     }, 3000)
 
     client.on('end', () => {
       animation.reset()
-      update_sidebar({ client }, { last: scoreboard, next: {} })
+      animation2.reset()
     })
   })
 }
