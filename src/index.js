@@ -47,7 +47,7 @@ const initial_state = ({ entity_id, world }) => ({
   position: world.spawn_position,
   view_distance: 0,
   inventory: Array.from({
-    length: 54,
+    length: 46,
     36: { type: 'spellbook', count: 1 },
     37: { type: 'bronze_coin', count: 10 },
     38: { type: 'menitrass_100', count: 1 },
