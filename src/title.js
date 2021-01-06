@@ -83,7 +83,7 @@ export function show_player_status(client, hp) {
 }
 
 function get_life_color(hp) {
-  const max_hp = 20 // TODO: replace with Player Life
+  const max_hp = 20 // TODO: replace with Player Max Life
   if (hp <= max_hp * 0.3) {
     return 'red'
   } else if (hp <= max_hp * 0.6) {
