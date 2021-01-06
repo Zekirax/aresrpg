@@ -59,3 +59,36 @@ export function write_title(
     stay: stay * 20,
   })
 }
+
+export function show_player_status(client, hp) {
+  const message = [
+    { text: '>>', color: 'gray', bold: true },
+    { text: ' Vie', color: 'green', bold: true },
+    { text: ' : ', color: 'light_gray', bold: true },
+    { text: hp, color: get_life_color(hp), bold: true },
+    { text: '/', color: 'light_gray', bold: true },
+    { text: '20', color: 'green', bold: true },
+    { text: '  : ', color: 'gray', bold: true },
+    { text: ' Zone', color: 'blue', bold: true },
+    { text: ' :', color: 'light_gray', bold: true },
+    { text: ' Non disponible', color: 'red', italic: true },
+    { text: ' <<', color: 'gray', bold: true },
+  ]
+  write_title(client, {
+    action: message,
+    fadeIn: 0,
+    fadeOut: 0,
+    stay: 10,
+  })
+}
+
+function get_life_color(hp) {
+  const max_hp = 20
+  if (hp <= max_hp * 0.3) {
+    return 'red'
+  } else if (hp <= max_hp * 0.6) {
+    return 'yellow'
+  } else {
+    return 'green'
+  }
+}

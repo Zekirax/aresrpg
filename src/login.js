@@ -3,7 +3,7 @@ import { empty_slot, item_to_slot } from './items.js'
 import { write_brand } from './plugin_channels.js'
 import { dimension_codec, overworld } from './world/codec.js'
 import { load_chunks } from './chunk/update.js'
-import { write_title } from './title.js'
+import { show_player_status, write_title } from './title.js'
 
 export default function login({ client, events }) {
   events.once('state', (state) => {
@@ -69,9 +69,18 @@ export default function login({ client, events }) {
     write_title(client, {
       subtitle: { text: 'Bienvenue sur' },
       title: { text: 'AresRPG' },
-      fadeIn: 5,
+      fadeIn: 2,
       fadeOut: 2,
-      stay: 10,
+      stay: 3,
     })
+
+    console.log(state)
+
+    let hp = 20
+    setInterval(() => {
+      // Player Schow Status Interval
+      show_player_status(client, hp)
+      hp--
+    }, 1000)
   })
 }
