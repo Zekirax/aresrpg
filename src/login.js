@@ -74,13 +74,11 @@ export default function login({ client, events }) {
       stay: 3,
     })
 
-    console.log(state)
-
-    let hp = 20
+    let hp = 20 // TODO: replace with Player Life
     setInterval(() => {
       // Player Schow Status Interval
-      show_player_status(client, hp)
-      hp--
+      show_player_status(client, hp) // TODO: Remove hp i think
+      hp-- // TODO: Remove this
     }, 1000)
   })
 }
