@@ -3,7 +3,6 @@ import { item_to_slot, empty_slot } from './items.js'
 export function reduce_inventory(state, { type, payload }) {
   if (type === 'inventory/window_click') {
     const { inv_index, item, item_save, transaction } = payload
-    console.log(state.inventory, state.cursor_item_selected)
     const newState = {
       ...state,
       inventory: [
@@ -11,10 +10,14 @@ export function reduce_inventory(state, { type, payload }) {
         item,
         ...state.inventory.slice(inv_index + 1),
       ],
-      cursor_item_selected: item_save,
+      cursor_item_history: [
+        state.cursor_item_history[state.cursor_item_history.length - 1],
+        item_save,
+      ],
     }
+    console.log('Save: ', item_save)
+    console.log('History: ', newState.cursor_item_history)
     transaction(newState)
-    console.log(newState.inventory, newState.cursor_item_selected)
     return newState
   }
   return state
@@ -25,15 +28,27 @@ export function listen_inventory({ client, events, dispatch }) {
     events.once('state', (state) => {
       if (windowId || slot === -1) return
       const payload = {
-        inv_index: slot === -999 ? state.cursor_item_selected.prev_slot : slot,
+        inv_index:
+          slot === -999
+            ? state.cursor_item_history[state.cursor_item_history.length - 1]
+                .slot
+            : slot,
         out_inv: slot === -999,
-        item: state.cursor_item_selected
-          ? state.cursor_item_selected.item
-          : undefined,
+        item:
+          state.cursor_item_history.length > 0
+            ? state.cursor_item_history[state.cursor_item_history.length - 1]
+                .item
+            : undefined,
         item_save: state.inventory[slot]
           ? { prev_slot: slot, item: state.inventory[slot] }
-          : undefined,
+          : { prev_slot: undefined, item: undefined },
       }
+      // console.log(state.cursor_item_history);
+      if (
+        item.itemId !== undefined &&
+        state.cursor_item_history[0] !== undefined
+      )
+        cancel_swap()
 
       dispatch('inventory/window_click', {
         ...state,
@@ -53,6 +68,8 @@ export function listen_inventory({ client, events, dispatch }) {
     })
   })
 }
+
+function cancel_swap() {}
 
 function restore_items(client, world, inventory) {
   const to_slot = (item) => {

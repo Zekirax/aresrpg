@@ -54,7 +54,10 @@ const initial_state = ({ entity_id, world }) => ({
   }),
   game_mode: 2,
   experience: 0,
-  cursor_item_selected: { prev_slot: undefined, item: undefined },
+  cursor_item_history: [
+    { prev_slot: undefined, item: undefined },
+    { prev_slot: undefined, item: undefined },
+  ],
 })
 
 function reduce_state(state, action) {
