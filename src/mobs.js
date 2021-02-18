@@ -19,6 +19,9 @@ function reduce_mob(state, action, world) {
 }
 
 export default {
+  /**
+   * @param {import('./index.js').InitialWorld} world
+   */
   register(world) {
     const mobs = world.mobs.map(({ position, mob, level }, i) => {
       const initial_state = {
