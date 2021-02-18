@@ -152,7 +152,7 @@ aiter(on(server, 'login')).reduce(
 
     aiter(
       combineAsyncIterators(
-        ...[actions[Symbol.asyncIterator](), packets, Enjin.sources]
+        actions[Symbol.asyncIterator](), packets, ...Enjin.sources
       )
     )
       .map(transform_action)
