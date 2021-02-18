@@ -43,8 +43,8 @@
     "pusher-js": "^7.0.3"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.16",
-    "@babel/eslint-parser": "^7.12.16",
+    "@babel/core": "^7.12.17",
+    "@babel/eslint-parser": "^7.12.17",
     "@hydre/pino-human": "^1.1.0",
     "@mermaid-js/mermaid-cli": "^8.9.0",
     "eslint": "^7.20.0",
