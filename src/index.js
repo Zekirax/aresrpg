@@ -15,6 +15,7 @@ import logger from './logger.js'
 import login from './login.js'
 import { register_mobs } from './mobs.js'
 import { send_resource_pack } from './resource_pack.js'
+import Enjin from './enjin/enjin.js'
 import {
   reduce_plugin_channels,
   transform_plugin_channels,
@@ -85,6 +86,7 @@ function reduce_state(state, action) {
     reduce_view_distance,
     reduce_plugin_channels,
     player_fall_damage.reducer,
+    Enjin.reducer,
   ].reduce((intermediate, fn) => fn(intermediate, action), state)
 }
 
@@ -148,7 +150,11 @@ aiter(on(server, 'login')).reduce(
 
     const events = new EventEmitter()
 
-    aiter(combineAsyncIterators(actions[Symbol.asyncIterator](), packets))
+    aiter(
+      combineAsyncIterators(
+        ...[actions[Symbol.asyncIterator](), packets, Enjin.sources]
+      )
+    )
       .map(transform_action)
       .reduce((last_state, action) => {
         const state = reduce_state(last_state, action)
