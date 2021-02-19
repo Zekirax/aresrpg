@@ -76,6 +76,8 @@ const initial_state = ({ entity_id, world }) => ({
   game_mode: 2,
   experience: 0,
   health: 40,
+  eth_wallet: undefined,
+  kares: 0, // ares coins
 })
 
 function reduce_state(state, action) {
@@ -152,7 +154,9 @@ aiter(on(server, 'login')).reduce(
 
     aiter(
       combineAsyncIterators(
-        actions[Symbol.asyncIterator](), packets, ...Enjin.sources
+        actions[Symbol.asyncIterator](),
+        packets,
+        ...Enjin.sources
       )
     )
       .map(transform_action)
