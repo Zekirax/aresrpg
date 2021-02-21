@@ -15,61 +15,75 @@ export function reduce_inventory(state, { type, payload }) {
         item_save,
       ],
     }
-    console.log('Save: ', item_save)
-    console.log('History: ', newState.cursor_item_history)
+    // console.log("inventory: ", newState.inventory)
     transaction(newState)
     return newState
   }
   return state
 }
-
+/**
+ *
+ *
+ * @export
+ * @param {*} { client, events, dispatch }
+ */
 export function listen_inventory({ client, events, dispatch }) {
-  client.on('window_click', ({ windowId, slot, action, item }) => {
-    events.once('state', (state) => {
-      if (windowId || slot === -1) return
-      const payload = {
-        inv_index:
-          slot === -999
-            ? state.cursor_item_history[state.cursor_item_history.length - 1]
-                .slot
-            : slot,
-        out_inv: slot === -999,
-        item:
-          state.cursor_item_history.length > 0
-            ? state.cursor_item_history[state.cursor_item_history.length - 1]
-                .item
-            : undefined,
-        item_save: state.inventory[slot]
-          ? { prev_slot: slot, item: state.inventory[slot] }
-          : { prev_slot: undefined, item: undefined },
-      }
-      // console.log(state.cursor_item_history);
-      if (
-        item.itemId !== undefined &&
-        state.cursor_item_history[0] !== undefined
-      )
-        cancel_swap()
+  client.on(
+    'window_click',
+    ({ windowId, slot, action, item, mouseButton, mode }) => {
+      events.once('state', (state) => {
+        if (windowId || slot === -1) return
+        console.log(mouseButton, mode)
+        const payload = {
+          inv_index:
+            slot === -999
+              ? state.cursor_item_history[state.cursor_item_history.length - 1]
+                  .prev_slot
+              : slot,
+          out_inv: slot === -999,
+          item:
+            state.cursor_item_history[state.cursor_item_history.length - 1]
+              .item,
+          item_save: state.inventory[slot]
+            ? { prev_slot: slot, item: state.inventory[slot] }
+            : { prev_slot: undefined, item: undefined },
+          isSwap: state.cursor_item_history.every((i) => i.item !== undefined),
+        }
 
-      dispatch('inventory/window_click', {
-        ...state,
-        ...payload,
-        transaction: (updatedState) => {
-          if (slot === -999) {
-            console.log('tesst')
-            restore_items(client, updatedState.world, updatedState.inventory)
-          }
-        },
+        if (payload.isSwap) {
+          return restore_items(client, state.world, state.inventory)
+        }
+
+        console.log(payload)
+
+        dispatch('inventory/window_click', {
+          ...state,
+          ...payload,
+          transaction: (updatedState) => {
+            console.log(updatedState.cursor_item_history, payload.isSwap)
+            if (slot === -999) {
+              console.log('tesst')
+              restore_items(client, updatedState.world, updatedState.inventory)
+            }
+          },
+        })
+        client.write('transaction', {
+          windowId,
+          action,
+          accepted: true,
+        })
       })
-      client.write('transaction', {
-        windowId,
-        action,
-        accepted: true,
-      })
+    }
+  )
+
+  // For the restore item with action Drop Key
+  client.on('block_dig', ({ status }) => {
+    events.once('state', (state) => {
+      if (status !== 3 && status !== 4) return
+      restore_items(client, state.world, state.inventory)
     })
   })
 }
-
-function cancel_swap() {}
 
 function restore_items(client, world, inventory) {
   const to_slot = (item) => {
