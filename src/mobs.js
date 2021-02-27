@@ -43,8 +43,13 @@ export default {
       const actions = new PassThrough({ objectMode: true })
       const events = new EventEmitter()
 
+      const entity_id = world.next_entity_id + i
+
       aiter(actions).reduce(async (last_state, action) => {
-        const state = await reduce_mob(last_state, action, world.get())
+        const state = await reduce_mob(last_state, action, {
+          world: world.get(),
+          entity_id,
+        })
         events.emit('state', state)
         return state
       }, initial_state)
@@ -52,7 +57,7 @@ export default {
       setImmediate(() => events.emit('state', initial_state))
 
       return {
-        entity_id: world.next_entity_id + i,
+        entity_id,
         mob,
         level,
         events,
