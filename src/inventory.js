@@ -2,14 +2,13 @@ import { item_to_slot, empty_slot } from './items.js'
 
 export function reduce_inventory(state, { type, payload }) {
   if (type === 'inventory/window_click') {
-    const { inv_index, item, item_save, transaction } = payload
+    const { item_save, transaction } = payload
     const newState = {
       ...state,
-      inventory: [
-        ...state.inventory.slice(0, inv_index),
-        item,
-        ...state.inventory.slice(inv_index + 1),
-      ],
+      inventory: mutli_update_array(
+        [...state.inventory],
+        [...state.cursor_item_history]
+      ),
       cursor_item_history: [
         state.cursor_item_history[state.cursor_item_history.length - 1],
         item_save,
@@ -41,26 +40,26 @@ export function listen_inventory({ client, events, dispatch }) {
                   .prev_slot
               : slot,
           out_inv: slot === -999,
-          item:
-            state.cursor_item_history[state.cursor_item_history.length - 1]
-              .item,
+          item: state.cursor_item_history,
           item_save: state.inventory[slot]
             ? { prev_slot: slot, item: state.inventory[slot] }
             : { prev_slot: undefined, item: undefined },
-          isSwap: state.cursor_item_history.every((i) => i.item !== undefined),
+          // isSwap: state.cursor_item_history.every((i) => i.item !== undefined),
         }
 
-        if (payload.isSwap) {
-          return restore_items(client, state.world, state.inventory)
-        }
+        // console.log(payload)
+        // console.log(state.cursor_item_history)
+        // console.log(state.inventory)
 
-        console.log(payload)
+        // if (payload.isSwap) {
+        //   return restore_items(client, state.world, inventory)
+        // }
 
         dispatch('inventory/window_click', {
           ...state,
           ...payload,
           transaction: (updatedState) => {
-            console.log(updatedState.cursor_item_history, payload.isSwap)
+            // console.log(updatedState.cursor_item_history, payload.isSwap)
             if (slot === -999) {
               console.log('tesst')
               restore_items(client, updatedState.world, updatedState.inventory)
@@ -83,6 +82,18 @@ export function listen_inventory({ client, events, dispatch }) {
       restore_items(client, state.world, state.inventory)
     })
   })
+}
+
+function mutli_update_array(inventory, history) {
+  history.forEach((element) => {
+    if (!element.item) return
+    inventory = [
+      ...inventory.slice(0, element.prev_slot),
+      element.item,
+      ...inventory.slice(element.prev_slot + 1),
+    ]
+  })
+  return inventory
 }
 
 function restore_items(client, world, inventory) {
